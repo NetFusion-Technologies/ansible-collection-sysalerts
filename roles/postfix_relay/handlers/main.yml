@@ -1,3 +1,7 @@
+- name: daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: rebuild sasl map
   ansible.builtin.command: "postmap {{ sysalerts_postfix_map_type }}:/etc/postfix/sasl_passwd"
 

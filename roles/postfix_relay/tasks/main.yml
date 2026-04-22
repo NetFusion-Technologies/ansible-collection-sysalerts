@@ -128,9 +128,64 @@
     - run newaliases
     - restart postfix
 
+- name: Apply Postfix container compatibility fixes
+  when: ansible_virtualization_type in ["lxc", "container", "docker"]
+  block:
+    - name: Check if Postfix chroot is enabled
+      ansible.builtin.shell: |
+        awk '
+          /^[[:space:]]*#/ {next}
+          NF >= 8 && $5 == "y" {print $1}
+        ' /etc/postfix/master.cf
+      args:
+        executable: /bin/bash
+      register: postfix_chroot_check
+      changed_when: false
+
+    - name: Disable Postfix chroot in containers
+      ansible.builtin.shell: |
+        awk 'BEGIN{OFS="\t"}
+          /^[[:space:]]*#/ || NF < 8 {print; next}
+          {$5="n"; print}
+        ' /etc/postfix/master.cf > /tmp/master.cf && \
+        mv /tmp/master.cf /etc/postfix/master.cf
+      args:
+        executable: /bin/bash
+      when: postfix_chroot_check.stdout != ""
+      notify: restart postfix
+
+    - name: Ensure postfix systemd override directory exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/postfix.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Set postfix systemd override for PrivateDevices
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/postfix.service.d/override.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Service]
+          PrivateDevices=no
+      notify:
+        - daemon reload
+        - restart postfix
+
 - name: Validate postfix config
   ansible.builtin.command: postfix check
   changed_when: false
+
+- name: Disable Postfix chroot in containers (LXC/Docker)
+  ansible.builtin.replace:
+    path: /etc/postfix/master.cf
+    regexp: '^(\S+\s+\S+\s+\S+\s+\S+\s+)y(\s+)'
+    replace: '\1n\2'
+  when: ansible_virtualization_type in ["lxc", "container", "docker"]
+  notify: restart postfix
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
