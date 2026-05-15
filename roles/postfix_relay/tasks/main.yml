@@ -7,18 +7,28 @@
     sysalerts_postfix_map_type: "{{ sysalerts_postfix_map_type | default('hash') }}"
     sysalerts_mail_client_package: "{{ sysalerts_mail_client_package | default('mailutils') }}"
     sysalerts_required_packages: "{{ sysalerts_required_packages_debian }}"
-  when: ansible_os_family == "Debian"
+    sysalerts_tls_cafile: "{{ sysalerts_tls_cafile | default('/etc/ssl/certs/ca-certificates.crt') }}"
+  when: ansible_facts["os_family"] == "Debian"
 
 - name: Set OS-specific defaults for Archlinux
   ansible.builtin.set_fact:
     sysalerts_postfix_map_type: "{{ sysalerts_postfix_map_type | default('lmdb') }}"
     sysalerts_mail_client_package: "{{ sysalerts_mail_client_package | default('mailutils') }}"
     sysalerts_required_packages: "{{ sysalerts_required_packages_arch }}"
-  when: ansible_os_family == "Archlinux"
+    sysalerts_tls_cafile: "{{ sysalerts_tls_cafile | default('/etc/ssl/certs/ca-certificates.crt') }}"
+  when: ansible_facts["os_family"] == "Archlinux"
+
+- name: Set OS-specific defaults for RedHat
+  ansible.builtin.set_fact:
+    sysalerts_postfix_map_type: "{{ sysalerts_postfix_map_type | default('hash') }}"
+    sysalerts_mail_client_package: "{{ sysalerts_mail_client_package | default('s-nail') }}"
+    sysalerts_required_packages: "{{ sysalerts_required_packages_redhat }}"
+    sysalerts_tls_cafile: "{{ sysalerts_tls_cafile | default('/etc/pki/tls/certs/ca-bundle.crt') }}"
+  when: ansible_facts["os_family"] == "RedHat"
 
 - name: Skip unsupported operating systems
   ansible.builtin.meta: end_host
-  when: ansible_os_family not in ["Debian", "Archlinux"]
+  when: ansible_facts["os_family"] not in ["Debian", "Archlinux", "RedHat"]
 
 - name: Ensure SMTP password is set
   ansible.builtin.assert:
@@ -31,14 +41,21 @@
     name: "{{ sysalerts_required_packages }}"
     state: present
     update_cache: true
-  when: ansible_os_family == "Debian"
+  when: ansible_facts["os_family"] == "Debian"
 
 - name: Install required packages on Archlinux
   community.general.pacman:
     name: "{{ sysalerts_required_packages }}"
     state: present
     update_cache: true
-  when: ansible_os_family == "Archlinux"
+  when: ansible_facts["os_family"] == "Archlinux"
+
+- name: Install required packages on RedHat
+  ansible.builtin.dnf:
+    name: "{{ sysalerts_required_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_facts["os_family"] == "RedHat"
 
 - name: Configure Postfix relay settings
   ansible.builtin.shell: |
@@ -52,7 +69,7 @@
     - "smtp_sasl_security_options = noanonymous"
     - "smtp_sasl_tls_security_options = noanonymous"
     - "smtp_tls_security_level = encrypt"
-    - "smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt"
+    - "smtp_tls_CAfile = {{ sysalerts_tls_cafile }}"
   args:
     executable: /bin/bash
   changed_when: true
@@ -129,7 +146,7 @@
     - restart postfix
 
 - name: Apply Postfix container compatibility fixes
-  when: ansible_virtualization_type in ["lxc", "container", "docker"]
+  when: ansible_facts["virtualization_type"] in ["lxc", "container", "docker"]
   block:
     - name: Check if Postfix chroot is enabled
       ansible.builtin.shell: |
@@ -175,27 +192,25 @@
         - daemon reload
         - restart postfix
 
+- name: Fix malformed UUCP continuation line in Postfix master.cf
+  ansible.builtin.replace:
+    path: /etc/postfix/master.cf
+    regexp: '^flags=Fqhu'
+    replace: '  flags=Fqhu'
+  notify: restart postfix
+
 - name: Validate postfix config
   ansible.builtin.command: postfix check
   changed_when: false
-
-- name: Disable Postfix chroot in containers (LXC/Docker)
-  ansible.builtin.replace:
-    path: /etc/postfix/master.cf
-    regexp: '^(\S+\s+\S+\s+\S+\s+\S+\s+)y(\s+)'
-    replace: '\1n\2'
-  when: ansible_virtualization_type in ["lxc", "container", "docker"]
-  notify: restart postfix
 
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
 
 - name: Send test message
   ansible.builtin.shell: |
-    echo "Test from {{ ansible_fqdn | default(ansible_hostname) }} at $(date)" | \
+    echo "Test from {{ ansible_facts['fqdn'] | default(ansible_facts['hostname']) }} at $(date)" | \
     mail -s "{{ sysalerts_test_subject }}" root
   args:
     executable: /bin/bash
   when: sysalerts_send_test | bool
   changed_when: true
-

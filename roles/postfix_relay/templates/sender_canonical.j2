@@ -1,5 +1,5 @@
-{% set fqdn = (ansible_fqdn | default(ansible_hostname)).rstrip('.') %}
-{% set host = ansible_hostname %}
+{% set fqdn = (ansible_facts["fqdn"] | default(ansible_facts["hostname"])).rstrip('.') %}
+{% set host = ansible_facts["hostname"] %}
 
 root {{ sysalerts_alias_target }}
 root@{{ host }} {{ sysalerts_alias_target }}

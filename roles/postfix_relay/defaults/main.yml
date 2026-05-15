@@ -11,7 +11,7 @@ sysalerts_skip_hosts:
 sysalerts_enable_recipient_rewrite: true
 sysalerts_enable_subject_tagging: true
 
-sysalerts_hostname_tag: "{{ ansible_hostname }}"
+sysalerts_hostname_tag: '{{ ansible_facts["hostname"] }}'
 sysalerts_test_subject: "sysalerts relay test"
 
 sysalerts_postfix_map_type: hash
@@ -29,3 +29,8 @@ sysalerts_required_packages_arch:
   - cyrus-sasl
   - ca-certificates
 
+sysalerts_required_packages_redhat:
+  - postfix
+  - cyrus-sasl-plain
+  - s-nail
+  - ca-certificates
