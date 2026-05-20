@@ -27,7 +27,7 @@ See `roles/postfix_relay/defaults/main.yml`.
 
 ```yaml
 - name: Deploy sysalerts relay
-  hosts: managed_linux:!bluestar
+  hosts: linux:!vm-bluestar
   become: true
   gather_facts: true
   roles:

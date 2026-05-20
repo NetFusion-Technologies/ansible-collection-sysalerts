@@ -1,6 +1,6 @@
 ---
 - name: Example sysalerts relay deployment
-  hosts: managed_linux
+  hosts: linux
   become: true
   gather_facts: true
 

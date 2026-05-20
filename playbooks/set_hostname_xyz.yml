@@ -1,6 +1,6 @@
 ---
 - name: Example hostname update to netfusiontechnologies.xyz
-  hosts: managed_linux
+  hosts: linux
   become: true
   gather_facts: true
 
