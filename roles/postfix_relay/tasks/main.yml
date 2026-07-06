@@ -1,6 +1,6 @@
-- name: Skip explicitly excluded hosts
+- name: Stop when sysalerts relay is disabled for this host
   ansible.builtin.meta: end_host
-  when: inventory_hostname in sysalerts_skip_hosts
+  when: not (sysalerts_enabled | default(true) | bool)
 
 - name: Set OS-specific defaults for Debian
   ansible.builtin.set_fact:
