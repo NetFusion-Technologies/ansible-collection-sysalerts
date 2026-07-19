@@ -6,9 +6,3 @@ root@{{ host }} {{ sysalerts_alias_target }}
 {% if fqdn != host %}
 root@{{ fqdn }} {{ sysalerts_alias_target }}
 {% endif %}
-
-awlynn {{ sysalerts_alias_target }}
-awlynn@{{ host }} {{ sysalerts_alias_target }}
-{% if fqdn != host %}
-awlynn@{{ fqdn }} {{ sysalerts_alias_target }}
-{% endif %}

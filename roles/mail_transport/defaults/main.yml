@@ -1,0 +1,165 @@
+---
+###############################################################################
+# Enablement
+###############################################################################
+
+mail_transport_enabled: "{{ sysalerts_enabled | default(true) }}"
+
+###############################################################################
+# SMTP relay
+###############################################################################
+
+mail_transport_smtp_server: >-
+  {{ sysalerts_smtp_server | default('mail.netfusiontechnologies.com') }}
+
+mail_transport_smtp_port: >-
+  {{ sysalerts_smtp_port | default(587) }}
+
+mail_transport_smtp_username: >-
+  {{ sysalerts_smtp_user | default('') }}
+
+mail_transport_smtp_password: >-
+  {{ sysalerts_smtp_pass | default('') }}
+
+mail_transport_require_tls: true
+
+###############################################################################
+# Local recipient routing
+###############################################################################
+
+mail_transport_system_recipient: >-
+  {{
+    sysalerts_alias_target
+    | default('sysalerts@netfusiontechnologies.com')
+  }}
+
+mail_transport_postmaster_recipient: >-
+  {{
+    sysalerts_postmaster_target
+    | default('postmaster@netfusiontechnologies.com')
+  }}
+
+mail_transport_enable_recipient_rewrite: >-
+  {{ sysalerts_enable_recipient_rewrite | default(true) }}
+
+###############################################################################
+# Sender rewriting
+###############################################################################
+
+mail_transport_enable_sender_rewrite: true
+
+# System senders only. Application senders such as website@familiarlaw.com
+# must remain unchanged.
+mail_transport_system_senders:
+  - root
+  - daemon
+  - bin
+  - sys
+  - sync
+  - games
+  - man
+  - lp
+  - mail
+  - news
+  - uucp
+  - proxy
+  - www-data
+  - backup
+  - list
+  - irc
+  - gnats
+  - nobody
+  - systemd-network
+  - systemd-timesync
+  - messagebus
+  - syslog
+  - postfix
+  - postgres
+  - mysql
+  - mongodb
+  - clamav
+  - amavis
+
+###############################################################################
+# Subject classification
+###############################################################################
+
+mail_transport_enable_subject_tagging: >-
+  {{ sysalerts_enable_subject_tagging | default(true) }}
+
+# There is intentionally no generic catch-all subject prefix.
+# Applications own their subjects. Only recognized system messages are tagged.
+mail_transport_subject_rules:
+  - pattern: 'CRON.*'
+    tag: CRON
+
+  - pattern: 'smartd.*|SMART.*'
+    tag: SMART
+
+  - pattern: 'mdadm.*|MDADM.*|DegradedArray.*'
+    tag: RAID
+
+  - pattern: 'logwatch.*'
+    tag: LOGWATCH
+
+  - pattern: 'unattended-upgrades.*|APT.*|apt-listchanges.*'
+    tag: PKG
+
+  - pattern: 'Monit.*|monit alert.*'
+    tag: MONIT
+
+  - pattern: 'fail2ban.*|Fail2Ban.*'
+    tag: FAIL2BAN
+
+mail_transport_hostname_tag: >-
+  {{
+    sysalerts_hostname_tag
+    | default(inventory_hostname)
+  }}
+
+###############################################################################
+# Postfix map types
+###############################################################################
+
+mail_transport_pattern_map_type: regexp
+
+###############################################################################
+# Postfix compatibility
+###############################################################################
+
+mail_transport_manage_compatibility_level: true
+mail_transport_minimum_compatibility_version: "3.6"
+
+###############################################################################
+# Test message
+###############################################################################
+
+mail_transport_send_test: "{{ sysalerts_send_test | default(false) }}"
+
+mail_transport_test_recipient: root
+
+mail_transport_test_subject: >-
+  [MAILTRANSPORT][{{ inventory_hostname }}][TEST] Relay validation
+
+###############################################################################
+# Operating-system package defaults
+###############################################################################
+
+mail_transport_required_packages_debian:
+  - postfix
+  - libsasl2-modules
+  - ca-certificates
+  - mailutils
+
+mail_transport_required_packages_arch:
+  - postfix
+  - cyrus-sasl
+  - ca-certificates
+  - s-nail
+
+mail_transport_required_packages_redhat:
+  - postfix
+  - cyrus-sasl-plain
+  - ca-certificates
+  - s-nail
+

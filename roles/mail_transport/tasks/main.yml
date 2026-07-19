@@ -1,0 +1,488 @@
+---
+- name: Mail transport | Stop when disabled
+  ansible.builtin.meta: end_host
+  when: not (mail_transport_enabled | bool)
+
+###############################################################################
+# Platform discovery
+###############################################################################
+
+- name: Mail transport | Set Debian defaults
+  ansible.builtin.set_fact:
+    mail_transport_postfix_map_type: >-
+      {{ mail_transport_postfix_map_type | default('hash') }}
+    mail_transport_pattern_map_type: >-
+      {{ mail_transport_pattern_map_type | default('regexp') }}
+    mail_transport_tls_cafile: >-
+      {{
+        mail_transport_tls_cafile
+        | default('/etc/ssl/certs/ca-certificates.crt')
+      }}
+    mail_transport_required_packages: >-
+      {{ mail_transport_required_packages_debian }}
+  when: ansible_facts.os_family == "Debian"
+
+- name: Mail transport | Set Arch Linux defaults
+  ansible.builtin.set_fact:
+    mail_transport_postfix_map_type: >-
+      {{ mail_transport_postfix_map_type | default('lmdb') }}
+    mail_transport_pattern_map_type: >-
+      {{ mail_transport_pattern_map_type | default('regexp') }}
+    mail_transport_tls_cafile: >-
+      {{
+        mail_transport_tls_cafile
+        | default('/etc/ssl/certs/ca-certificates.crt')
+      }}
+    mail_transport_required_packages: >-
+      {{ mail_transport_required_packages_arch }}
+  when: ansible_facts.os_family == "Archlinux"
+
+- name: Mail transport | Set Arch Linux defaults
+  ansible.builtin.set_fact:
+    mail_transport_postfix_map_type: >-
+      {{ mail_transport_postfix_map_type | default('lmdb') }}
+    mail_transport_pattern_map_type: >-
+      {{ mail_transport_pattern_map_type | default('regexp') }}
+    mail_transport_tls_cafile: >-
+      {{
+        mail_transport_tls_cafile
+        | default('/etc/ssl/certs/ca-certificates.crt')
+      }}
+    mail_transport_required_packages: >-
+      {{ mail_transport_required_packages_arch }}
+  when: ansible_facts.os_family == "Archlinux"
+
+- name: Mail transport | Set Red Hat defaults
+  ansible.builtin.set_fact:
+    mail_transport_postfix_map_type: >-
+      {{ mail_transport_postfix_map_type | default('hash') }}
+    mail_transport_pattern_map_type: >-
+      {{ mail_transport_pattern_map_type | default('regexp') }}
+    mail_transport_tls_cafile: >-
+      {{
+        mail_transport_tls_cafile
+        | default('/etc/pki/tls/certs/ca-bundle.crt')
+      }}
+    mail_transport_required_packages: >-
+      {{ mail_transport_required_packages_redhat }}
+  when: ansible_facts.os_family == "RedHat"
+
+- name: Mail transport | Reject unsupported operating systems
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ["Debian", "Archlinux", "RedHat"]
+    fail_msg: >-
+      netfusion.sysalerts.mail_transport does not support
+      {{ ansible_facts.os_family }}.
+
+- name: Mail transport | Validate relay configuration
+  ansible.builtin.assert:
+    that:
+      - mail_transport_smtp_server | length > 0
+      - mail_transport_smtp_port | int > 0
+      - mail_transport_smtp_username | length > 0
+      - mail_transport_smtp_password | length > 0
+      - mail_transport_system_recipient | length > 0
+      - mail_transport_postmaster_recipient | length > 0
+    fail_msg: "Mail transport relay variables are incomplete."
+  no_log: true
+
+###############################################################################
+# Packages
+###############################################################################
+
+- name: Mail transport | Install Debian packages
+  ansible.builtin.apt:
+    name: "{{ mail_transport_required_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_facts.os_family == "Debian"
+
+- name: Mail transport | Install Arch Linux packages
+  community.general.pacman:
+    name: "{{ mail_transport_required_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_facts.os_family == "Archlinux"
+
+- name: Mail transport | Install Red Hat packages
+  ansible.builtin.dnf:
+    name: "{{ mail_transport_required_packages }}"
+    state: present
+    update_cache: true
+  when: ansible_facts.os_family == "RedHat"
+
+###############################################################################
+# Postfix map capability validation
+###############################################################################
+
+- name: Mail transport | Read supported Postfix map types
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -m
+  register: mail_transport_supported_map_types
+  changed_when: false
+
+- name: Mail transport | Assert required Postfix map types are available
+  ansible.builtin.assert:
+    that:
+      - >-
+        mail_transport_postfix_map_type
+        in mail_transport_supported_map_types.stdout_lines
+      - >-
+        mail_transport_pattern_map_type
+        in mail_transport_supported_map_types.stdout_lines
+    fail_msg: >-
+      Required Postfix map support is unavailable.
+      Indexed map: {{ mail_transport_postfix_map_type }}.
+      Pattern map: {{ mail_transport_pattern_map_type }}.
+      Available maps:
+      {{ mail_transport_supported_map_types.stdout_lines | join(', ') }}
+
+###############################################################################
+# Postfix base configuration
+###############################################################################
+
+- name: Mail transport | Configure Postfix relay parameters
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -e
+      - "{{ mail_transport_postfix_setting }}"
+  loop:
+    - "inet_interfaces = loopback-only"
+    - "mydestination = $myhostname, localhost.$mydomain, localhost"
+    - >-
+      relayhost =
+      [{{ mail_transport_smtp_server }}]:{{ mail_transport_smtp_port }}
+    - "smtp_sasl_auth_enable = yes"
+    - >-
+      smtp_sasl_password_maps =
+      {{ mail_transport_postfix_map_type }}:/etc/postfix/sasl_passwd
+    - "smtp_sasl_security_options = noanonymous"
+    - "smtp_sasl_tls_security_options = noanonymous"
+    - >-
+      smtp_tls_security_level =
+      {{ 'encrypt' if mail_transport_require_tls else 'may' }}
+    - "smtp_tls_CAfile = {{ mail_transport_tls_cafile }}"
+  loop_control:
+    loop_var: mail_transport_postfix_setting
+    label: "{{ mail_transport_postfix_setting.split('=')[0] | trim }}"
+  changed_when: true
+  notify: reload mail transport
+
+###############################################################################
+# Postfix compatibility level
+###############################################################################
+
+- name: Mail transport | Read installed Postfix version
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -h
+      - mail_version
+  register: mail_transport_postfix_version
+  changed_when: false
+
+- name: Mail transport | Read current compatibility level
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -h
+      - compatibility_level
+  register: mail_transport_current_compatibility_level
+  changed_when: false
+  failed_when: false
+
+- name: Mail transport | Set supported Postfix compatibility level
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -e
+      - >-
+        compatibility_level =
+        {{ mail_transport_minimum_compatibility_version }}
+  when:
+    - mail_transport_manage_compatibility_level | bool
+    - >-
+      mail_transport_postfix_version.stdout
+      is version(mail_transport_minimum_compatibility_version, '>=')
+    - >-
+      mail_transport_current_compatibility_level.stdout
+      != mail_transport_minimum_compatibility_version
+  changed_when: true
+  notify: reload mail transport
+
+###############################################################################
+# Authentication
+###############################################################################
+
+- name: Mail transport | Write SASL credential file
+  ansible.builtin.template:
+    src: sasl_passwd.j2
+    dest: /etc/postfix/sasl_passwd
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify:
+    - rebuild mail transport sasl map
+    - reload mail transport
+
+###############################################################################
+# Sender rewriting
+###############################################################################
+
+- name: Mail transport | Write sender canonical map
+  ansible.builtin.template:
+    src: sender_canonical.j2
+    dest: /etc/postfix/sender_canonical
+    owner: root
+    group: root
+    mode: "0644"
+  when: mail_transport_enable_sender_rewrite | bool
+  notify:
+    - rebuild mail transport sender map
+    - reload mail transport
+
+- name: Mail transport | Enable sender canonical rewriting
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -e
+      - >-
+        sender_canonical_maps =
+        {{ mail_transport_postfix_map_type }}:/etc/postfix/sender_canonical
+  when: mail_transport_enable_sender_rewrite | bool
+  changed_when: true
+  notify: reload mail transport
+
+###############################################################################
+# Recipient rewriting
+###############################################################################
+
+- name: Mail transport | Write recipient canonical map
+  ansible.builtin.template:
+    src: recipient_canonical.j2
+    dest: /etc/postfix/recipient_canonical
+    owner: root
+    group: root
+    mode: "0644"
+  when: mail_transport_enable_recipient_rewrite | bool
+  notify: reload mail transport
+
+- name: Mail transport | Enable recipient canonical rewriting
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -e
+      - >-
+        recipient_canonical_maps =
+        {{ mail_transport_pattern_map_type }}:/etc/postfix/recipient_canonical
+  when: mail_transport_enable_recipient_rewrite | bool
+  changed_when: true
+  notify: reload mail transport
+
+###############################################################################
+# Subject classification
+###############################################################################
+
+- name: Mail transport | Write header classification rules
+  ansible.builtin.template:
+    src: header_checks.j2
+    dest: /etc/postfix/header_checks
+    owner: root
+    group: root
+    mode: "0644"
+  when: mail_transport_enable_subject_tagging | bool
+  notify: reload mail transport
+
+- name: Mail transport | Enable header classification
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -e
+      - >-
+        header_checks =
+        {{ mail_transport_pattern_map_type }}:/etc/postfix/header_checks
+  when: mail_transport_enable_subject_tagging | bool
+  changed_when: true
+  notify: reload mail transport
+
+- name: Mail transport | Disable header classification when requested
+  ansible.builtin.command:
+    argv:
+      - postconf
+      - -X
+      - header_checks
+  when: not (mail_transport_enable_subject_tagging | bool)
+  changed_when: true
+  failed_when: false
+  notify: reload mail transport
+
+###############################################################################
+# Aliases
+###############################################################################
+
+- name: Mail transport | Configure root alias
+  ansible.builtin.lineinfile:
+    path: /etc/aliases
+    regexp: '^root:'
+    line: "root: {{ mail_transport_system_recipient }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - rebuild mail aliases
+    - reload mail transport
+
+- name: Mail transport | Configure RFC administrative aliases
+  ansible.builtin.lineinfile:
+    path: /etc/aliases
+    regexp: "^{{ mail_transport_alias.key }}:"
+    line: >-
+      {{ mail_transport_alias.key }}:
+      {{ mail_transport_postmaster_recipient }}
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - key: postmaster
+    - key: abuse
+    - key: hostmaster
+    - key: webmaster
+    - key: mailer-daemon
+  loop_control:
+    loop_var: mail_transport_alias
+    label: "{{ mail_transport_alias.key }}"
+  notify:
+    - rebuild mail aliases
+    - reload mail transport
+
+###############################################################################
+# Container compatibility
+###############################################################################
+
+- name: Mail transport | Apply container compatibility
+  when:
+    - >-
+      ansible_facts.virtualization_type
+      | default('')
+      in ['lxc', 'container', 'docker']
+  block:
+    - name: Mail transport | Detect chrooted Postfix services
+      ansible.builtin.shell: |
+        awk '
+          /^[[:space:]]*#/ { next }
+          NF >= 8 && $5 == "y" { print $1 }
+        ' /etc/postfix/master.cf
+      args:
+        executable: /bin/bash
+      register: mail_transport_chroot_services
+      changed_when: false
+
+    - name: Mail transport | Disable Postfix chroot in containers
+      ansible.builtin.shell: |
+        set -e
+
+        awk 'BEGIN { OFS="\t" }
+          /^[[:space:]]*#/ || NF < 8 {
+            print
+            next
+          }
+          {
+            $5 = "n"
+            print
+          }
+        ' /etc/postfix/master.cf > /etc/postfix/master.cf.new
+
+        install \
+          -o root \
+          -g root \
+          -m 0644 \
+          /etc/postfix/master.cf.new \
+          /etc/postfix/master.cf
+
+        rm -f /etc/postfix/master.cf.new
+      args:
+        executable: /bin/bash
+      when: mail_transport_chroot_services.stdout | length > 0
+      changed_when: true
+      notify: restart mail transport
+
+    - name: Mail transport | Create Postfix override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/postfix.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Mail transport | Allow device access in containers
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/postfix.service.d/override.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Service]
+          PrivateDevices=no
+      notify:
+        - reload systemd
+        - restart mail transport
+
+###############################################################################
+# Validation
+###############################################################################
+
+- name: Mail transport | Flush configuration handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Mail transport | Validate Postfix configuration
+  ansible.builtin.command:
+    argv:
+      - postfix
+      - check
+  changed_when: false
+
+- name: Mail transport | Verify Postfix is active
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - postfix
+  register: mail_transport_postfix_active
+  changed_when: false
+  failed_when: mail_transport_postfix_active.stdout != "active"
+
+- name: Mail transport | Send validation message
+  ansible.builtin.shell: |
+    set -euo pipefail
+
+    {
+      printf 'To: %s\n' '{{ mail_transport_test_recipient }}'
+      printf 'Subject: %s\n' '{{ mail_transport_test_subject }}'
+      printf 'X-NetFusion-Source: mail-transport-validation\n'
+      printf 'Auto-Submitted: auto-generated\n'
+      printf '\n'
+      printf 'NetFusion mail transport validation\n'
+      printf '\n'
+      printf 'Host: %s\n' '{{ inventory_hostname }}'
+      printf 'FQDN: %s\n' \
+        '{{ ansible_facts.fqdn | default(inventory_hostname) }}'
+      printf 'OS: %s %s\n' \
+        '{{ ansible_facts.distribution | default("unknown") }}' \
+        '{{ ansible_facts.distribution_version | default("unknown") }}'
+      printf 'Postfix: %s\n' \
+        '{{ mail_transport_postfix_version.stdout | trim }}'
+      printf 'Generated: %s\n' \
+        '{{ ansible_facts.date_time.iso8601 }}'
+    } | /usr/sbin/sendmail -t -i
+  args:
+    executable: /bin/bash
+  when: mail_transport_send_test | bool
+  changed_when: true
+

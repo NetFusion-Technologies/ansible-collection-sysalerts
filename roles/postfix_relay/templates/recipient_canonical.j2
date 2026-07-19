@@ -1,9 +1,29 @@
-/^[^@]+$/ {{ sysalerts_alias_target }}
-/^[^@]+@localhost(\..*)?$/ {{ sysalerts_alias_target }}
-/^[^@]+@[^.]+$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.local$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.localdomain$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.internal$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.netfusiontechnologies\.com$/ {{ sysalerts_alias_target }}
-/^[^@]+@.*\.netfusiontechnologies\.xyz$/ {{ sysalerts_alias_target }}
+# RFC administrative recipients
+/^postmaster$/ {{ sysalerts_postmaster_target }}
+/^postmaster@localhost(\..*)?$/ {{ sysalerts_postmaster_target }}
+/^postmaster@{{ ansible_facts.hostname | regex_escape }}$/ {{ sysalerts_postmaster_target }}
+/^postmaster@{{ ansible_facts.fqdn | regex_escape }}$/ {{ sysalerts_postmaster_target }}
 
+/^abuse$/ {{ sysalerts_postmaster_target }}
+/^hostmaster$/ {{ sysalerts_postmaster_target }}
+/^webmaster$/ {{ sysalerts_postmaster_target }}
+/^mailer-daemon$/ {{ sysalerts_postmaster_target }}
+
+/^abuse@localhost(\..*)?$/ {{ sysalerts_postmaster_target }}
+/^hostmaster@localhost(\..*)?$/ {{ sysalerts_postmaster_target }}
+/^webmaster@localhost(\..*)?$/ {{ sysalerts_postmaster_target }}
+/^mailer-daemon@localhost(\..*)?$/ {{ sysalerts_postmaster_target }}
+
+/^abuse@{{ ansible_facts.fqdn | regex_escape }}$/ {{ sysalerts_postmaster_target }}
+/^hostmaster@{{ ansible_facts.fqdn | regex_escape }}$/ {{ sysalerts_postmaster_target }}
+/^webmaster@{{ ansible_facts.fqdn | regex_escape }}$/ {{ sysalerts_postmaster_target }}
+/^mailer-daemon@{{ ansible_facts.fqdn | regex_escape }}$/ {{ sysalerts_postmaster_target }}
+
+# Any bare local account
+/^[^@]+$/ {{ sysalerts_alias_target }}
+
+# Any account explicitly addressed to localhost or this host
+/^[^@]+@localhost$/ {{ sysalerts_alias_target }}
+/^[^@]+@localhost\.localdomain$/ {{ sysalerts_alias_target }}
+/^[^@]+@{{ ansible_facts.hostname | regex_escape }}$/ {{ sysalerts_alias_target }}
+/^[^@]+@{{ ansible_facts.fqdn | regex_escape }}$/ {{ sysalerts_alias_target }}

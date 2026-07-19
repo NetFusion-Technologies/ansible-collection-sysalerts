@@ -4,5 +4,4 @@
 /^Subject:\s*(logwatch.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][LOGWATCH] $1
 /^Subject:\s*(unattended-upgrades.*|APT.*|apt-listchanges.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][PKG] $1
 /^Subject:\s*(Monit.*|monit alert.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][MONIT] $1
-/^Subject:\s*(.*)$/ REPLACE Subject: [{{ sysalerts_hostname_tag }}][SYS] $1
 

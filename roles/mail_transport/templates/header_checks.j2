@@ -1,0 +1,12 @@
+# Managed by netfusion.sysalerts.mail_transport.
+#
+# Preserve application-owned structured subjects. These messages already
+# identify their source and purpose and must not receive a generic SYS prefix.
+/^Subject:[[:space:]]*\[(WEBFORM|AUTH|ODOO|BACKUP|MONITORING|ALERT|SECURITY|MAILTRANSPORT)\]/ DUNNO
+
+{% for rule in mail_transport_subject_rules %}
+/^Subject:[[:space:]]*({{ rule.pattern }})$/ REPLACE Subject: [{{ mail_transport_hostname_tag }}][{{ rule.tag }}] $1
+{% endfor %}
+
+# Deliberately no catch-all rule.
+

@@ -5,8 +5,12 @@
 - name: rebuild sasl map
   ansible.builtin.command: "postmap {{ sysalerts_postfix_map_type }}:/etc/postfix/sasl_passwd"
 
-- name: rebuild sender canonical map
-  ansible.builtin.command: "postmap {{ sysalerts_postfix_map_type }}:/etc/postfix/sender_canonical"
+- name: Rebuild sender canonical map
+  ansible.builtin.command:
+    argv:
+      - postmap
+      - "{{ sysalerts_postfix_map_type }}:/etc/postfix/sender_canonical"
+  changed_when: true
 
 - name: run newaliases
   ansible.builtin.command: newaliases

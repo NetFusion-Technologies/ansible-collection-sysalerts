@@ -1,0 +1,32 @@
+# Managed by netfusion.sysalerts.mail_transport.
+
+# RFC administrative recipients.
+/^postmaster$/ {{ mail_transport_postmaster_recipient }}
+/^postmaster@localhost(\..*)?$/ {{ mail_transport_postmaster_recipient }}
+/^postmaster@{{ ansible_facts.hostname | regex_escape }}$/ {{ mail_transport_postmaster_recipient }}
+/^postmaster@{{ ansible_facts.fqdn | regex_escape }}$/ {{ mail_transport_postmaster_recipient }}
+
+/^abuse$/ {{ mail_transport_postmaster_recipient }}
+/^hostmaster$/ {{ mail_transport_postmaster_recipient }}
+/^webmaster$/ {{ mail_transport_postmaster_recipient }}
+/^mailer-daemon$/ {{ mail_transport_postmaster_recipient }}
+
+/^abuse@localhost(\..*)?$/ {{ mail_transport_postmaster_recipient }}
+/^hostmaster@localhost(\..*)?$/ {{ mail_transport_postmaster_recipient }}
+/^webmaster@localhost(\..*)?$/ {{ mail_transport_postmaster_recipient }}
+/^mailer-daemon@localhost(\..*)?$/ {{ mail_transport_postmaster_recipient }}
+
+/^abuse@{{ ansible_facts.fqdn | regex_escape }}$/ {{ mail_transport_postmaster_recipient }}
+/^hostmaster@{{ ansible_facts.fqdn | regex_escape }}$/ {{ mail_transport_postmaster_recipient }}
+/^webmaster@{{ ansible_facts.fqdn | regex_escape }}$/ {{ mail_transport_postmaster_recipient }}
+/^mailer-daemon@{{ ansible_facts.fqdn | regex_escape }}$/ {{ mail_transport_postmaster_recipient }}
+
+# Any bare local account.
+/^[^@]+$/ {{ mail_transport_system_recipient }}
+
+# Any account explicitly addressed to localhost or this host.
+/^[^@]+@localhost$/ {{ mail_transport_system_recipient }}
+/^[^@]+@localhost\.localdomain$/ {{ mail_transport_system_recipient }}
+/^[^@]+@{{ ansible_facts.hostname | regex_escape }}$/ {{ mail_transport_system_recipient }}
+/^[^@]+@{{ ansible_facts.fqdn | regex_escape }}$/ {{ mail_transport_system_recipient }}
+

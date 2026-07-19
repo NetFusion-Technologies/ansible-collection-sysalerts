@@ -1,0 +1,41 @@
+---
+- name: Rebuild mail transport SASL map
+  ansible.builtin.command:
+    argv:
+      - postmap
+      - "{{ mail_transport_postfix_map_type }}:/etc/postfix/sasl_passwd"
+  changed_when: true
+  listen: rebuild mail transport sasl map
+
+- name: Rebuild mail transport sender map
+  ansible.builtin.command:
+    argv:
+      - postmap
+      - "{{ mail_transport_postfix_map_type }}:/etc/postfix/sender_canonical"
+  changed_when: true
+  listen: rebuild mail transport sender map
+
+- name: Rebuild mail aliases
+  ansible.builtin.command:
+    argv:
+      - newaliases
+  changed_when: true
+  listen: rebuild mail aliases
+
+- name: Reload Postfix
+  ansible.builtin.systemd:
+    name: postfix
+    state: reloaded
+  listen: reload mail transport
+
+- name: Restart Postfix
+  ansible.builtin.systemd:
+    name: postfix
+    state: restarted
+  listen: restart mail transport
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  listen: reload systemd
+

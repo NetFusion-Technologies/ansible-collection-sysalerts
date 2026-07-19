@@ -1,0 +1,13 @@
+# Managed by netfusion.sysalerts.mail_transport.
+#
+# Rewrite system-generated local identities only. Do not rewrite arbitrary
+# users or application-owned senders such as website@familiarlaw.com.
+
+{% for local_sender in mail_transport_system_senders %}
+{{ local_sender }} {{ mail_transport_system_recipient }}
+{{ local_sender }}@{{ ansible_facts.hostname }} {{ mail_transport_system_recipient }}
+{{ local_sender }}@{{ ansible_facts.fqdn }} {{ mail_transport_system_recipient }}
+{{ local_sender }}@localhost {{ mail_transport_system_recipient }}
+{{ local_sender }}@localhost.localdomain {{ mail_transport_system_recipient }}
+{% endfor %}
+
